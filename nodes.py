@@ -2,6 +2,7 @@ import os
 
 import numpy as np
 import torch
+import emoji
 from PIL import Image, ImageDraw, ImageFont
 
 
@@ -47,11 +48,11 @@ class TextOverlay:
                 ),  # Text to overlay
                 "font_size": (
                     "INT",
-                    {"default": 32, "min": 1, "max": 256, "step": 1},
+                    {"default": 200, "min": 1, "max": 256, "step": 1},
                 ),  # Font size
                 "font": (
                     "STRING",
-                    {"default": "ariblk.ttf"},
+                    {"default": "/tmp/data/ComfyUI/fonts/Feibo.otf"},
                 ),  # Font name (e.g. arial.ttf)
                 "fill_color_hex": (
                     "STRING",
@@ -63,19 +64,19 @@ class TextOverlay:
                 ),  # Text stroke color in hex
                 "stroke_thickness": (
                     "FLOAT",
-                    {"default": 0.2, "min": 0.0, "max": 1.0, "step": 0.01},
+                    {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.01},
                 ),  # Stroke thickness
                 "padding": (
                     "INT",
-                    {"default": 16, "min": 0, "max": 128, "step": 1},
+                    {"default": 30, "min": 0, "max": 128, "step": 1},
                 ),  # Padding around text
                 "horizontal_alignment": (
                     cls._horizontal_alignments,
-                    {"default": "center"},
+                    {"default": "right"},
                 ),  # Horizontal alignment
                 "vertical_alignment": (
                     cls._vertical_alignments,
-                    {"default": "bottom"},
+                    {"default": "middle"},
                 ),  # Vertical alignment
                 "x_shift": (
                     "INT",
@@ -109,22 +110,36 @@ class TextOverlay:
             hex_color = hex_color * 2
         return tuple(int(hex_color[i : i + 2], 16) for i in (0, 2, 4))
 
-    def draw_text(
-        self,
-        image,
-        text,
-        font_size,
-        font,
-        fill_color_hex,
-        stroke_color_hex,
-        stroke_thickness,
-        padding,
-        horizontal_alignment,
-        vertical_alignment,
-        x_shift,
-        y_shift,
-        use_cache=False,
-    ):
+    def load_fonts(self, font, font_size):
+        """
+        Loads the primary and default fonts.
+
+        Parameters:
+        - font (str): The font type of the text.
+        - font_size (int): The font size of the text.
+        """
+        fonts_dir = os.path.join(os.path.dirname(__file__), "fonts")
+        font_path = os.path.join(fonts_dir, font)
+
+        # Check if the font file exists in the fonts directory
+        if not os.path.exists(font_path):
+            # If not, set path to font name directly - this will cause PIL to search for the font in the system
+            font_path = font
+
+        try:
+            self._loaded_font = ImageFont.truetype(font_path, font_size)
+        except Exception as e:
+            print(f"Error loading font: {e}... Using default font")
+            self._loaded_font = ImageFont.load_default(font_size)
+
+        # Load default font for emojis
+        try:
+            self._default_font = ImageFont.truetype("/tmp/data/ComfyUI/fonts/NotoColorEmoji-Regular.ttf", font_size)
+        except Exception as e:
+            print(f"Error loading default font for emojis: {e}... Using default font")
+            self._default_font = ImageFont.load_default(font_size)
+
+    def draw_text(self, image, text, font_size, font, fill_color_hex, stroke_color_hex, stroke_thickness, padding, horizontal_alignment, vertical_alignment, x_shift, y_shift, use_cache=False):
         """
         Draws the specified text on the given image with the provided styling and alignment options.
 
@@ -146,22 +161,9 @@ class TextOverlay:
         Returns:
         - PIL.Image.Image: The image with the text overlay applied.
         """
-
-        # Load font from the fonts directory or use default if not found or specified to not use cache
-        if self._loaded_font is None or use_cache is False:
-            fonts_dir = os.path.join(os.path.dirname(__file__), "fonts")
-            font_path = os.path.join(fonts_dir, font)
-
-            # Check if the font file exists in the fonts directory
-            if not os.path.exists(font_path):
-                # If not, set path to font name directly - this will cause PIL to search for the font in the system
-                font_path = font
-
-            try:
-                self._loaded_font = ImageFont.truetype(font_path, font_size)
-            except Exception as e:
-                print(f"Error loading font: {e}... Using default font")
-                self._loaded_font = ImageFont.load_default(font_size)
+        # Load fonts if not already loaded or if cache is not being used
+        if self._loaded_font is None or self._default_font is None or use_cache is False:
+            self.load_fonts(font, font_size)
 
         # Prepare to draw on the image
         draw = ImageDraw.Draw(image)
@@ -173,10 +175,7 @@ class TextOverlay:
             for word in words:
                 extra_line = "\n" in word
                 word = word.strip()
-                if (
-                    draw.textlength(line + word, font=self._loaded_font)
-                    < image.width - 2 * padding
-                ):
+                if draw.textlength(line + word, font=self._loaded_font) < image.width - 2 * padding:
                     line += word + " "
                 else:
                     text_lines.append(line.strip())
@@ -212,32 +211,26 @@ class TextOverlay:
             self._y += y_shift
 
         # Draw the processed text onto the image
-        draw.text(
-            (self._x, self._y),
-            self._full_text,
-            fill=self.hex_to_rgb(fill_color_hex),
-            stroke_fill=self.hex_to_rgb(stroke_color_hex),
-            stroke_width=int(font_size * stroke_thickness * 0.5),
-            font=self._loaded_font,
-            align=horizontal_alignment,
-        )
+        current_x = self._x
+        for char in self._full_text:
+            if char in emoji.UNICODE_EMOJI_ENGLISH:
+                font = self._default_font
+            else:
+                font = self._loaded_font
+            draw.text(
+                (current_x, self._y),
+                char,
+                fill=self.hex_to_rgb(fill_color_hex),
+                stroke_fill=self.hex_to_rgb(stroke_color_hex),
+                stroke_width=int(font_size * stroke_thickness * 0.5),
+                font=font,
+                align=horizontal_alignment,
+            )
+            current_x += draw.textlength(char, font=font)
+
         return image
 
-    def batch_process(
-        self,
-        image,
-        text,
-        font_size,
-        font,
-        fill_color_hex,
-        stroke_color_hex,
-        stroke_thickness,
-        padding,
-        horizontal_alignment,
-        vertical_alignment,
-        x_shift,
-        y_shift,
-    ):
+    def batch_process(self, image, text, font_size, font, fill_color_hex, stroke_color_hex, stroke_thickness, padding, horizontal_alignment, vertical_alignment, x_shift, y_shift):
         """
         Processes a batch of images or a single image, adding the specified text overlay
         with the given styling and alignment options.
@@ -259,7 +252,6 @@ class TextOverlay:
         Returns:
         - tuple: A tuple containing the processed image(s) as a torch.Tensor.
         """
-
         # Handles both single and batch image processing for text overlay
         if len(image.shape) == 3:  # Single image
             image_np = image.cpu().numpy()
