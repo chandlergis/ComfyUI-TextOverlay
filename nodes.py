@@ -138,7 +138,17 @@ class TextOverlay:
         except Exception as e:
             print(f"Error loading default font for emojis: {e}... Using default font")
             self._default_font = ImageFont.load_default(font_size)
+    def is_emoji(self, char):
+        """
+        Checks if a character is an emoji.
 
+        Parameters:
+        - char (str): The character to check.
+
+        Returns:
+        - bool: True if the character is an emoji, False otherwise.
+        """
+        return emoji.is_emoji(char)
     def draw_text(self, image, text, font_size, font, fill_color_hex, stroke_color_hex, stroke_thickness, padding, horizontal_alignment, vertical_alignment, x_shift, y_shift, use_cache=False):
         """
         Draws the specified text on the given image with the provided styling and alignment options.
