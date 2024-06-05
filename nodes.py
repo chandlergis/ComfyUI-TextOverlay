@@ -1,8 +1,10 @@
 import os
+
 import numpy as np
 import torch
-from PIL import Image, ImageDraw, ImageFont
 import emoji
+from PIL import Image, ImageDraw, ImageFont
+
 
 class TextOverlay:
     """
@@ -10,7 +12,7 @@ class TextOverlay:
     font size, font type, text color, stroke color, stroke thickness, padding,
     alignment, and position adjustments.
     """
-    
+
     _horizontal_alignments = ["left", "center", "right"]
     _vertical_alignments = ["top", "middle", "bottom"]
 
@@ -21,9 +23,9 @@ class TextOverlay:
         Parameters:
         - device (str): The computing device to use, default is 'cpu'.
         """
+
         self.device = device
         self._loaded_font = None
-        self._default_font = None
         self._full_text = None
         self._x = None
         self._y = None
@@ -36,6 +38,7 @@ class TextOverlay:
         Returns:
         - dict: A dictionary specifying required inputs and their attributes.
         """
+
         return {
             "required": {
                 "image": ("IMAGE",),  # Input image to overlay text on
@@ -45,11 +48,11 @@ class TextOverlay:
                 ),  # Text to overlay
                 "font_size": (
                     "INT",
-                    {"default": 32, "min": 1, "max": 256, "step": 1},
+                    {"default": 200, "min": 1, "max": 256, "step": 1},
                 ),  # Font size
                 "font": (
                     "STRING",
-                    {"default": "ariblk.ttf"},
+                    {"default": "/tmp/data/ComfyUI/fonts/Feibo.otf"},
                 ),  # Font name (e.g. arial.ttf)
                 "fill_color_hex": (
                     "STRING",
@@ -61,19 +64,19 @@ class TextOverlay:
                 ),  # Text stroke color in hex
                 "stroke_thickness": (
                     "FLOAT",
-                    {"default": 0.2, "min": 0.0, "max": 1.0, "step": 0.01},
+                    {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.01},
                 ),  # Stroke thickness
                 "padding": (
                     "INT",
-                    {"default": 16, "min": 0, "max": 128, "step": 1},
+                    {"default": 30, "min": 0, "max": 128, "step": 1},
                 ),  # Padding around text
                 "horizontal_alignment": (
                     cls._horizontal_alignments,
-                    {"default": "center"},
+                    {"default": "right"},
                 ),  # Horizontal alignment
                 "vertical_alignment": (
                     cls._vertical_alignments,
-                    {"default": "bottom"},
+                    {"default": "middle"},
                 ),  # Vertical alignment
                 "x_shift": (
                     "INT",
@@ -86,6 +89,7 @@ class TextOverlay:
             }
         }
 
+    # Static attributes defining the return type, function name, and category for the class
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "batch_process"
     CATEGORY = "image/text"
@@ -100,10 +104,11 @@ class TextOverlay:
         Returns:
         - tuple: The color converted to an (R, G, B) tuple.
         """
+
         hex_color = hex_color.lstrip("#")
         if len(hex_color) == 3:
             hex_color = hex_color * 2
-        return tuple(int(hex_color[i: i + 2], 16) for i in (0, 2, 4))
+        return tuple(int(hex_color[i : i + 2], 16) for i in (0, 2, 4))
 
     def load_fonts(self, font, font_size):
         """
@@ -129,22 +134,10 @@ class TextOverlay:
 
         # Load default font for emojis
         try:
-            self._default_font = ImageFont.truetype("DejaVuSans.ttf", font_size)
+            self._default_font = ImageFont.truetype("/tmp/data/ComfyUI/fonts/NotoColorEmoji-Regular.ttf", font_size)
         except Exception as e:
             print(f"Error loading default font for emojis: {e}... Using default font")
             self._default_font = ImageFont.load_default(font_size)
-
-    def is_emoji(self, char):
-        """
-        Checks if a character is an emoji.
-
-        Parameters:
-        - char (str): The character to check.
-
-        Returns:
-        - bool: True if the character is an emoji, False otherwise.
-        """
-        return char in emoji.UNICODE_EMOJI
 
     def draw_text(self, image, text, font_size, font, fill_color_hex, stroke_color_hex, stroke_thickness, padding, horizontal_alignment, vertical_alignment, x_shift, y_shift, use_cache=False):
         """
