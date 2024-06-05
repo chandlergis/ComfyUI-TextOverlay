@@ -149,6 +149,7 @@ class TextOverlay:
         - bool: True if the character is an emoji, False otherwise.
         """
         return emoji.is_emoji(char)
+
     def draw_text(self, image, text, font_size, font, fill_color_hex, stroke_color_hex, stroke_thickness, padding, horizontal_alignment, vertical_alignment, x_shift, y_shift, use_cache=False):
         """
         Draws the specified text on the given image with the provided styling and alignment options.
@@ -233,7 +234,8 @@ class TextOverlay:
                 font=font,
                 align=horizontal_alignment,
             )
-            current_x += draw.textlength(char, font=font)
+            char_width, _ = font.getsize(char)
+            current_x += char_width
 
         return image
 
